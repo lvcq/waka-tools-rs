@@ -6,10 +6,12 @@ use crate::shared_preferences::MinioConfig;
 pub async fn minio_upload(
     config: MinioConfig,
     paths: Vec<String>,
-    dir: String,
+    bucket: String,
 ) -> Result<CommandResponse<Vec<String>>, String> {
     let mut result: CommandResponse<Vec<String>> = CommandResponse::default();
-    let server_paths = match MinioHelper::save_files(&config, &dir, paths).await {
+
+    
+    let server_paths = match MinioHelper::save_files(&config, &bucket, paths).await {
         Ok(paths) => paths,
         Err(err) => {
             result.set_success(false);
