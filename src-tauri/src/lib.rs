@@ -3,6 +3,7 @@ pub(crate) mod command;
 pub(crate) mod helper;
 pub(crate) mod shared_preferences;
 
+use app_state::image_cache::ImageCache;
 use app_state::AppState;
 use command::cropper::create_cropper_thumbnail;
 use command::minio::minio_upload;
@@ -31,7 +32,16 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            app.manage(AppState::default());
+            let resource_dir = app.path.resource_dir().unwrap();
+            let image_cache = ImageCache::new(
+                &resource_dir,
+                500,
+                1024 * 1024 * 1024 * 4, // 4GB
+            );
+
+            app.manage(AppState{
+                image_cache,
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

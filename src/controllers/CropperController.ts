@@ -312,6 +312,10 @@ export class CropperController {
     }
 
 
+    /**
+     * 上传示例图片
+     * 
+     */
     private async uploadLocalSample() {
         if (this.isLocalSample) {
             info(`uploading ${this.sampleUrl}`);
@@ -326,5 +330,17 @@ export class CropperController {
         } else {
             return this.sampleUrl
         }
+    }
+
+    /**
+     * 创建预览图片
+     */
+
+    private crate_thumbnail() {
+
+        if(this.isLocalSample){
+            info("创建缩略图")
+        }
+    
     }
 }

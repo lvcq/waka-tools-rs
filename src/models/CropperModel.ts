@@ -21,6 +21,13 @@ export interface CropperModel {
     update_at: number
 }
 
+export interface CropValues {
+    x: number
+    y: number
+    height: number
+    width: number
+}
+
 export const BodyTypeMap = {
     [BodyType.FEMALE]: '成女',
     [BodyType.MALE]: '成男',
