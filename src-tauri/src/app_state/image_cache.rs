@@ -1,19 +1,19 @@
+use log::error;
+use lru::LruCache;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    num::NonZeroUsize,
     path::PathBuf,
     sync::Mutex,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use lru::LruCache;
-use serde::{Deserialize, Serialize};
-use log::error;
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImageCacheMetaItem {
     original_path: String,
     cache_path: String,
-    last_accessed: u64,
+    last_accessed: u128,
     size: u64,
 }
 
@@ -22,6 +22,7 @@ pub struct ImageCacheMeta {
     items: HashMap<String, ImageCacheMetaItem>,
 }
 
+#[derive(Debug)]
 pub struct ImageCache {
     resource_dir: PathBuf,
     memory_cache: Mutex<LruCache<String, Vec<u8>>>,
@@ -48,10 +49,14 @@ impl ImageCache {
         } else {
             ImageCacheMeta::default()
         };
-
+        let items_count: NonZeroUsize = if max_memory_items > 0 {
+            NonZeroUsize::new(max_memory_items).unwrap()
+        } else {
+            NonZeroUsize::new(100).unwrap()
+        };
         Self {
             resource_dir: resource_dir.clone(),
-            memory_cache: Mutex::new(LruCache::new(max_memory_items)),
+            memory_cache: Mutex::new(LruCache::new(items_count)),
             meta: Mutex::new(meta),
             cache_dir: img_cache_dir,
             max_memory_items,
@@ -82,7 +87,7 @@ impl ImageCache {
         {
             let meta = self.meta.lock().unwrap();
             if let Some(meta_item) = meta.items.get(&path_hash) {
-                let stored_path = self.cache_dir.join(meta_item.cache_path);
+                let stored_path = self.cache_dir.join(&meta_item.cache_path);
                 if let Ok(data) = std::fs::read(&stored_path) {
                     // 放入内存缓存
                     let mut memory_cache = self.memory_cache.lock().unwrap();
@@ -93,7 +98,11 @@ impl ImageCache {
                     self.update_last_accessed(&path_hash);
 
                     return Some(data);
+                } else {
+                    None
                 }
+            } else {
+                None
             }
         }
     }
@@ -149,8 +158,8 @@ impl ImageCache {
     }
 
     fn update_last_accessed(&self, path_hash: &str) {
-        let meta = self.meta.lock().unwrap();
-        if let Some(item) = meta.items.get(path_hash) {
+        let mut meta = self.meta.lock().unwrap();
+        if let Some(item) = meta.items.get_mut(path_hash) {
             item.last_accessed = self.get_timestemp();
 
             // 异步保存元数据变更
@@ -165,33 +174,36 @@ impl ImageCache {
     }
 
     fn cleanup_disk_cache(&self) -> Result<(), String> {
-
         let mut meta = self.meta.lock().unwrap();
 
         // 计算总大小
-        let total_size:u64 =meta.items.values().map(|item| item.size).sum();
-        if total_size < self.max_disk_size{
-            return  Ok(());
+        let total_size: u64 = meta.items.values().map(|item| item.size).sum();
+        if total_size < self.max_disk_size {
+            return Ok(());
         }
 
         // 需要清理，按照最后访问时间排序
 
-        let mut items :Vec<(String, ImageCacheMetaItem)> = meta.items.iter().collect();
-        items.sort_by(|a,b|a.1.last_accessed.cmp(&b.1.last_accessed));
+        let mut items: Vec<(String, ImageCacheMetaItem)> = meta
+            .items
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+        items.sort_by(|a, b| a.1.last_accessed.cmp(&b.1.last_accessed));
         let mut current_size = total_size;
-        let target_size = self.max_disk_size * 8/10;
-        while current_size>target_size && !items.is_empty(){
-            let (hash,item) = items.remove(0);
+        let target_size = self.max_disk_size * 8 / 10;
+        while current_size > target_size && !items.is_empty() {
+            let (hash, item) = items.remove(0);
             //删除文件
             let file_path = self.cache_dir.join(&item.cache_path);
-            if let Err(e) = std::fs::remove_file(&file_path){
+            if let Err(e) = std::fs::remove_file(&file_path) {
                 error!("删除缓存图片失败");
                 continue;
             }
 
-             // 从元数据中移除
-             meta.items.remove(&hash);
-             current_size -= item.size;
+            // 从元数据中移除
+            meta.items.remove(&hash.clone());
+            current_size -= item.size;
         }
 
         // 保存更新后的元数据
@@ -200,7 +212,7 @@ impl ImageCache {
         Ok(())
     }
 
-    fn get_timestemp(&self) -> u64 {
+    fn get_timestemp(&self) -> u128 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

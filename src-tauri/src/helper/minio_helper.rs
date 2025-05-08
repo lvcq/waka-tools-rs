@@ -44,6 +44,33 @@ impl MinioHelper {
         Ok(results)
     }
 
+    pub async fn get_file(
+        config: &MinioConfig,
+        bucket: &str,
+        file_name: &str,
+    ) -> Result<Bytes, String> {
+        let client = create_minio_client(config)?;
+
+        let response = client.get_object(bucket, file_name).await.map_err(|_e| {
+            format!(
+                "从minio获取图片失败, bucket: {}, file_name: {}",
+                bucket, file_name
+            )
+        })?;
+        match response.content_length() {
+            Some(len) if len > 0 => {
+                let bytes = response
+                    .bytes()
+                    .await
+                    .map_err(|_e| "读取图片数据错误".to_string())?;
+                Ok(bytes)
+            }
+            _ => {
+                return Err(format!("从minio获取的图片内容为空"));
+            }
+        }
+    }
+
     /// 上传字节数组到minio
     pub async fn upload_bytes(
         data: Vec<u8>,

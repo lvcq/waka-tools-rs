@@ -1,8 +1,10 @@
 use opencv::{
-    core::{Mat, MatTraitConst, Rect},
+    core::{Mat, MatTraitConst, Rect, Size, Vector},
     imgcodecs::{imdecode, imencode, imread, ImreadModes},
     imgproc,
 };
+
+use crate::{app_state::image_cache::ImageCache, shared_preferences::MinioConfig};
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct CropValues {
@@ -31,21 +33,22 @@ impl PictureHelper {
         let mut img = PictureHelper::crop(&img, values)?;
         let width = img.cols();
         if width > max_width {
-            let scale_factor = max_width / width;
-            img = PictureHelper::scale(&img, scale_factor)
+            let scale_factor = (max_width as f64) / (width as f64);
+            img = PictureHelper::scale(&img, scale_factor)?;
         }
         PictureHelper::translate_img_to_u8_vec(&img)
     }
 
     fn load_local_img(img_path: &str) -> Result<Mat, String> {
-        let img = imread(picture, opencv::imgcodecs::IMREAD_COLOR)
+        let img = imread(img_path, opencv::imgcodecs::IMREAD_COLOR)
             .map_err(|_err| "读取图片失败".to_string())?;
         Ok(img)
     }
 
     fn load_vec_u8_img(data: Vec<u8>) -> Result<Mat, String> {
-        let img =
-            imdecode(&data, ImreadModes::IMREAD_COLOR).map_err(|_e| "图片转化错误".to_string())?;
+        let img_data: Vector<u8> = Vector::from_slice(data[..].as_ref());
+        let img = imdecode(&img_data, ImreadModes::IMREAD_COLOR as i32)
+            .map_err(|_e| "图片转化错误".to_string())?;
         if img.empty() {
             Err("图片数据为空".to_string())
         } else {
@@ -55,6 +58,7 @@ impl PictureHelper {
 
     /// 裁剪图片
     fn crop(picture: &Mat, values: &CropValues) -> Result<Mat, String> {
+        let rect: Rect = Rect::new(values.x, values.y, values.width, values.height);
         let cropped_img = Mat::roi(picture, rect).map_err(|_err| "裁剪图片失败".to_string())?;
         Ok(cropped_img.clone_pointee())
     }
@@ -69,7 +73,7 @@ impl PictureHelper {
     }
 
     /// 缩放图片
-    fn scale(img: &Mat, factor: i32) -> Result<Mat, String> {
+    fn scale(img: &Mat, factor: f64) -> Result<Mat, String> {
         let mut scaled_img = Mat::default();
         imgproc::resize(
             &img,                  // Input image
@@ -83,6 +87,14 @@ impl PictureHelper {
         return Ok(scaled_img);
     }
 
-    ///
-    pub fn fetch_remote_image() {}
+    /// 获取图片数据
+    /// 第一步：从图片缓存中读取数据，如果在缓存中找到，直接返回图片
+    /// 第二步：如果缓存中不存在，从minio中获取
+    pub fn fetch_remote_image(
+        imageCache: &ImageCache,
+        config: &MinioConfig,
+        bucket: &str,
+        file_name: &str,
+    ) {
+    }
 }

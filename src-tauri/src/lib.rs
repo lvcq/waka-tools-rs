@@ -32,16 +32,14 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let resource_dir = app.path.resource_dir().unwrap();
+            let resource_dir = app.path().resource_dir().unwrap();
             let image_cache = ImageCache::new(
                 &resource_dir,
                 500,
                 1024 * 1024 * 1024 * 4, // 4GB
             );
 
-            app.manage(AppState{
-                image_cache,
-            });
+            app.manage(AppState { image_cache });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

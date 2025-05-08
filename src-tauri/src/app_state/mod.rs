@@ -3,7 +3,7 @@ use image_cache::ImageCache;
 pub mod image_cache;
 
 /// 应用状态
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct AppState {
-    pub image_cache: ImageCache
+    pub image_cache: ImageCache,
 }
