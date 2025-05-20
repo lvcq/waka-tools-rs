@@ -13,8 +13,14 @@ RUN apt update && \
     libssl-dev \
     libayatana-appindicator3-dev \
     librsvg2-dev && \
+    llvm  && \
+    clang && \
+    libclang-dev && \
+    libopencv-dev && \
+    python3-opencv && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
+
 
 # 安装 Rust, Bun
 RUN curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y
